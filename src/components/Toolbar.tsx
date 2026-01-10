@@ -8,12 +8,121 @@ import { SUPPORTED_IMAGE_TYPES, SUPPORTED_VIDEO_TYPES } from '../types';
 import type { ExportFormat } from '../services/exportService';
 import type { ImageElement } from '../types';
 
+// 声明 electronAPI 类型
+declare global {
+  interface Window {
+    electronAPI?: {
+      getVersion: () => Promise<string>;
+      checkForUpdates: () => Promise<unknown>;
+      onUpdateAvailable: (callback: (info: { version: string }) => void) => void;
+      onUpdateNotAvailable: (callback: () => void) => void;
+      onUpdateError: (callback: (error: string) => void) => void;
+      onUpdateDownloading: (callback: () => void) => void;
+      onUpdateProgress: (callback: (percent: number) => void) => void;
+    };
+  }
+}
+
 export const Toolbar: React.FC = () => {
   const { dispatch, state } = useCanvas();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftInputRef = useRef<HTMLInputElement>(null);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('png');
   const [isExporting, setIsExporting] = useState(false);
+  const [version, setVersion] = useState<string>('');
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'latest' | 'error'>('idle');
+  const [updateProgress, setUpdateProgress] = useState<number>(0);
+
+  // 获取版本号
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.getVersion().then(setVersion);
+      
+      // 监听更新事件
+      window.electronAPI.onUpdateAvailable((info) => {
+        setUpdateStatus('available');
+        console.log('发现新版本:', info.version);
+      });
+      
+      window.electronAPI.onUpdateNotAvailable(() => {
+        setUpdateStatus('latest');
+        // 3秒后恢复
+        setTimeout(() => setUpdateStatus('idle'), 3000);
+      });
+      
+      window.electronAPI.onUpdateError((error) => {
+        setUpdateStatus('error');
+        console.error('更新错误:', error);
+        setTimeout(() => setUpdateStatus('idle'), 3000);
+      });
+      
+      window.electronAPI.onUpdateDownloading(() => {
+        setUpdateStatus('downloading');
+      });
+      
+      window.electronAPI.onUpdateProgress((percent) => {
+        setUpdateProgress(percent);
+      });
+    } else {
+      // 非 Electron 环境，显示开发版本
+      setVersion('dev');
+    }
+  }, []);
+
+  // 检查更新
+  const handleCheckUpdate = async () => {
+    if (!window.electronAPI || updateStatus === 'checking') return;
+    
+    setUpdateStatus('checking');
+    try {
+      await window.electronAPI.checkForUpdates();
+    } catch (error) {
+      console.error('检查更新失败:', error);
+      setUpdateStatus('error');
+      setTimeout(() => setUpdateStatus('idle'), 3000);
+    }
+  };
+
+  // 获取版本显示文本
+  const getVersionText = () => {
+    switch (updateStatus) {
+      case 'checking':
+        return `v${version} 检查中...`;
+      case 'available':
+        return `v${version} 有更新!`;
+      case 'downloading':
+        return `v${version} 下载中 ${updateProgress.toFixed(0)}%`;
+      case 'latest':
+        return `v${version} 已是最新`;
+      case 'error':
+        return `v${version} 检查失败`;
+      default:
+        return `v${version}`;
+    }
+  };
+
+  // 获取版本样式
+  const getVersionStyle = (): React.CSSProperties => {
+    const baseStyle: React.CSSProperties = {
+      ...styles.version,
+      cursor: window.electronAPI ? 'pointer' : 'default',
+    };
+    
+    switch (updateStatus) {
+      case 'available':
+        return { ...baseStyle, color: '#4ade80', fontWeight: 'bold' };
+      case 'downloading':
+        return { ...baseStyle, color: '#60a5fa' };
+      case 'latest':
+        return { ...baseStyle, color: '#4ade80' };
+      case 'error':
+        return { ...baseStyle, color: '#f87171' };
+      case 'checking':
+        return { ...baseStyle, color: '#fbbf24' };
+      default:
+        return baseStyle;
+    }
+  };
 
   // 未保存更改提醒
   useEffect(() => {
@@ -210,6 +319,16 @@ export const Toolbar: React.FC = () => {
         元素: {state.elements.length} | 选中: {state.selectedIds.size}
         {state.hasUnsavedChanges && <span style={{ color: '#ffc107' }}> (未保存)</span>}
       </span>
+      <div style={{ flex: 1 }} />
+      {version && (
+        <span 
+          style={getVersionStyle()} 
+          onClick={handleCheckUpdate}
+          title="点击检查更新"
+        >
+          {getVersionText()}
+        </span>
+      )}
     </div>
   );
 };
@@ -251,5 +370,12 @@ const styles: Record<string, React.CSSProperties> = {
   info: {
     color: '#888',
     fontSize: '13px',
+  },
+  version: {
+    color: '#666',
+    fontSize: '12px',
+    padding: '4px 8px',
+    borderRadius: '4px',
+    transition: 'all 0.2s',
   },
 };

@@ -25,10 +25,14 @@ function setupAutoUpdater() {
   // 检查更新出错
   autoUpdater.on('error', (error) => {
     console.error('更新错误:', error);
+    mainWindow?.webContents.send('update-error', error.message);
   });
 
   // 检查到新版本
   autoUpdater.on('update-available', (info) => {
+    // 通知渲染进程有新版本
+    mainWindow?.webContents.send('update-available', info);
+    
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: '发现新版本',
@@ -47,6 +51,7 @@ function setupAutoUpdater() {
   // 没有新版本
   autoUpdater.on('update-not-available', () => {
     console.log('当前已是最新版本');
+    mainWindow?.webContents.send('update-not-available');
   });
 
   // 下载进度
@@ -217,7 +222,7 @@ function getMenuTemplate() {
             dialog.showMessageBox(mainWindow, {
               type: 'info',
               title: '关于无限画布',
-              message: '无限画布 v1.0.0',
+              message: '无限画布 v1.0.1',
               detail: '一个支持图片和视频的无限画布应用。\n\n功能：上传、拖动、合并、导出、保存草稿。',
             });
           },
@@ -252,18 +257,27 @@ app.whenReady().then(() => {
   setupAutoUpdater();
 });
 
-// IPC: 手动检查更新
+// IPC: 获取版本号
+ipcMain.handle('get-version', () => {
+  return app.getVersion();
+});
+
+// IPC: 手动检查更新（从渲染进程触发）
 ipcMain.handle('check-for-updates', async () => {
-  if (!isDev) {
-    try {
-      const result = await autoUpdater.checkForUpdates();
-      return result;
-    } catch (error) {
-      console.error('检查更新失败:', error);
-      return null;
-    }
+  if (isDev) {
+    // 开发模式下模拟检查
+    mainWindow?.webContents.send('update-not-available');
+    return { isDev: true };
   }
-  return null;
+  
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return result;
+  } catch (error) {
+    console.error('检查更新失败:', error);
+    mainWindow?.webContents.send('update-error', error.message);
+    return null;
+  }
 });
 
 app.on('window-all-closed', () => {
