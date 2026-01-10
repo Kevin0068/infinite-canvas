@@ -6,6 +6,7 @@ const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow;
+let isQuitting = false;
 
 // 配置自动更新
 function setupAutoUpdater() {
@@ -70,7 +71,22 @@ function setupAutoUpdater() {
       defaultId: 0,
     }).then((result) => {
       if (result.response === 0) {
-        autoUpdater.quitAndInstall();
+        // 设置退出标志，防止窗口关闭事件阻止退出
+        isQuitting = true;
+        
+        // 强制关闭所有窗口
+        const windows = BrowserWindow.getAllWindows();
+        windows.forEach(win => {
+          win.removeAllListeners('close');
+          win.close();
+        });
+        
+        // 延迟执行安装，确保窗口已关闭
+        setTimeout(() => {
+          // isSilent: false - 显示安装界面
+          // isForceRunAfter: true - 安装后自动启动应用
+          autoUpdater.quitAndInstall(false, true);
+        }, 100);
       }
     });
   });
@@ -115,6 +131,14 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // 处理窗口关闭事件，更新时不阻止关闭
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      // 正常关闭时可以添加确认逻辑
+      // 但更新时直接关闭
+    }
   });
 }
 
@@ -222,7 +246,7 @@ function getMenuTemplate() {
             dialog.showMessageBox(mainWindow, {
               type: 'info',
               title: '关于无限画布',
-              message: '无限画布 v1.0.1',
+              message: '无限画布 v1.0.2',
               detail: '一个支持图片和视频的无限画布应用。\n\n功能：上传、拖动、合并、导出、保存草稿。',
             });
           },
