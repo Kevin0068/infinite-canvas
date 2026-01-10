@@ -1,0 +1,255 @@
+import React, { useRef, useState, useEffect } from 'react';
+import { useCanvas } from '../context/CanvasContext';
+import { loadFile } from '../services/fileService';
+import { mergeImages } from '../core/merger';
+import { exportAndDownload } from '../services/exportService';
+import { saveDraftToFile, loadDraftFromFile, deserializeDraft } from '../services/draftService';
+import { SUPPORTED_IMAGE_TYPES, SUPPORTED_VIDEO_TYPES } from '../types';
+import type { ExportFormat } from '../services/exportService';
+import type { ImageElement } from '../types';
+
+export const Toolbar: React.FC = () => {
+  const { dispatch, state } = useCanvas();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const draftInputRef = useRef<HTMLInputElement>(null);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('png');
+  const [isExporting, setIsExporting] = useState(false);
+
+  // 未保存更改提醒
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (state.hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '你有未保存的更改，确定要离开吗？';
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [state.hasUnsavedChanges]);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // 计算最大 zIndex
+    const maxZIndex = state.elements.length > 0 
+      ? Math.max(...state.elements.map(el => el.zIndex)) 
+      : 0;
+
+    // 默认位置（画布中心）
+    const centerX = -state.viewport.offset.x / state.viewport.scale + 400;
+    const centerY = -state.viewport.offset.y / state.viewport.scale + 300;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const element = await loadFile(
+          file,
+          { x: centerX + i * 20, y: centerY + i * 20 },
+          maxZIndex + i + 1
+        );
+        dispatch({ type: 'ADD_ELEMENT', payload: element });
+      } catch (error) {
+        console.error('文件加载失败:', error);
+        alert(`文件加载失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      }
+    }
+
+    // 清空 input 以允许重复选择同一文件
+    e.target.value = '';
+  };
+
+  const acceptTypes = [...SUPPORTED_IMAGE_TYPES, ...SUPPORTED_VIDEO_TYPES].join(',');
+
+  // 获取选中的图片元素
+  const selectedImages = state.elements.filter(
+    (el): el is ImageElement => el.type === 'image' && state.selectedIds.has(el.id)
+  );
+  const canMerge = selectedImages.length >= 2;
+  
+  // 获取所有图片元素（用于导出）
+  const allImages = state.elements.filter(
+    (el): el is ImageElement => el.type === 'image'
+  );
+  const canExport = selectedImages.length > 0 || allImages.length > 0;
+
+  const handleMerge = async () => {
+    if (!canMerge) return;
+    
+    try {
+      const mergedImage = await mergeImages(selectedImages, () => crypto.randomUUID());
+      dispatch({ type: 'MERGE_IMAGES', payload: mergedImage });
+    } catch (error) {
+      console.error('合并失败:', error);
+      alert(`合并失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
+
+  const handleExport = async () => {
+    if (!canExport || isExporting) return;
+    
+    // 优先导出选中的图片，否则导出所有图片
+    const imagesToExport = selectedImages.length > 0 ? selectedImages : allImages;
+    
+    setIsExporting(true);
+    try {
+      const filename = `canvas-export-${Date.now()}`;
+      await exportAndDownload(imagesToExport, filename, { format: exportFormat });
+    } catch (error) {
+      console.error('导出失败:', error);
+      alert(`导出失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // 保存草稿
+  const handleSaveDraft = () => {
+    try {
+      saveDraftToFile(state, `canvas-draft-${Date.now()}`);
+      dispatch({ type: 'MARK_SAVED' });
+    } catch (error) {
+      console.error('保存失败:', error);
+      alert(`保存失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
+
+  // 加载草稿
+  const handleLoadDraftClick = () => {
+    if (state.hasUnsavedChanges) {
+      if (!confirm('你有未保存的更改，确定要加载新草稿吗？')) {
+        return;
+      }
+    }
+    draftInputRef.current?.click();
+  };
+
+  const handleDraftFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const draft = await loadDraftFromFile(file);
+      const restoredState = deserializeDraft(draft);
+      dispatch({ type: 'LOAD_STATE', payload: restoredState });
+    } catch (error) {
+      console.error('加载草稿失败:', error);
+      alert(`加载草稿失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+
+    e.target.value = '';
+  };
+
+  return (
+    <div style={styles.toolbar}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept={acceptTypes}
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+      />
+      <input
+        ref={draftInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleDraftFileChange}
+        style={{ display: 'none' }}
+      />
+      <button onClick={handleUploadClick} style={styles.button} title="上传图片或视频">
+        📁 上传
+      </button>
+      <button 
+        onClick={handleMerge} 
+        style={{
+          ...styles.button,
+          backgroundColor: canMerge ? '#4a90d9' : '#555',
+          cursor: canMerge ? 'pointer' : 'not-allowed',
+        }} 
+        disabled={!canMerge}
+        title={canMerge ? '合并选中的图片' : '请选择至少2张图片'}
+      >
+        🔗 合并
+      </button>
+      <div style={styles.separator} />
+      <select
+        value={exportFormat}
+        onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+        style={styles.select}
+      >
+        <option value="png">PNG</option>
+        <option value="jpg">JPG</option>
+      </select>
+      <button
+        onClick={handleExport}
+        style={{
+          ...styles.button,
+          backgroundColor: canExport && !isExporting ? '#28a745' : '#555',
+          cursor: canExport && !isExporting ? 'pointer' : 'not-allowed',
+        }}
+        disabled={!canExport || isExporting}
+        title={selectedImages.length > 0 ? '导出选中的图片' : '导出所有图片'}
+      >
+        {isExporting ? '⏳ 导出中...' : '📥 导出'}
+      </button>
+      <div style={styles.separator} />
+      <button onClick={handleSaveDraft} style={styles.button} title="保存草稿">
+        💾 保存
+      </button>
+      <button onClick={handleLoadDraftClick} style={styles.button} title="加载草稿">
+        📂 加载
+      </button>
+      <div style={styles.separator} />
+      <span style={styles.info}>
+        元素: {state.elements.length} | 选中: {state.selectedIds.size}
+        {state.hasUnsavedChanges && <span style={{ color: '#ffc107' }}> (未保存)</span>}
+      </span>
+    </div>
+  );
+};
+
+const styles: Record<string, React.CSSProperties> = {
+  toolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '8px 16px',
+    backgroundColor: '#2d2d2d',
+    borderBottom: '1px solid #404040',
+    gap: '8px',
+  },
+  button: {
+    padding: '8px 16px',
+    backgroundColor: '#4a90d9',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 500,
+  },
+  select: {
+    padding: '8px 12px',
+    backgroundColor: '#3d3d3d',
+    color: 'white',
+    border: '1px solid #555',
+    borderRadius: '4px',
+    fontSize: '14px',
+    cursor: 'pointer',
+  },
+  separator: {
+    width: '1px',
+    height: '24px',
+    backgroundColor: '#404040',
+    margin: '0 8px',
+  },
+  info: {
+    color: '#888',
+    fontSize: '13px',
+  },
+};
