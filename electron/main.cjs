@@ -7,21 +7,16 @@ const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow;
 let isQuitting = false;
+let updateDownloaded = false;
 
 // 配置自动更新
 function setupAutoUpdater() {
-  // 使用 GitHub Releases 作为更新源
-  // 会自动从 package.json 的 publish 配置读取
-  // 如果需要手动设置，取消下面的注释：
-  // autoUpdater.setFeedURL({
-  //   provider: 'github',
-  //   owner: 'YOUR_GITHUB_USERNAME',
-  //   repo: 'infinite-canvas',
-  // });
-
   // 禁用自动下载，让用户确认后再下载
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
+  
+  // macOS 上允许降级（用于测试）
+  autoUpdater.allowDowngrade = false;
 
   // 检查更新出错
   autoUpdater.on('error', (error) => {
@@ -62,6 +57,8 @@ function setupAutoUpdater() {
 
   // 下载完成
   autoUpdater.on('update-downloaded', (info) => {
+    updateDownloaded = true;
+    
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: '更新已就绪',
@@ -71,22 +68,13 @@ function setupAutoUpdater() {
       defaultId: 0,
     }).then((result) => {
       if (result.response === 0) {
-        // 设置退出标志，防止窗口关闭事件阻止退出
         isQuitting = true;
-        
-        // 强制关闭所有窗口
-        const windows = BrowserWindow.getAllWindows();
-        windows.forEach(win => {
-          win.removeAllListeners('close');
-          win.close();
-        });
-        
-        // 延迟执行安装，确保窗口已关闭
-        setTimeout(() => {
-          // isSilent: false - 显示安装界面
-          // isForceRunAfter: true - 安装后自动启动应用
+        // 使用 setImmediate 确保在事件循环的下一个周期执行
+        setImmediate(() => {
+          // isSilent: false - 不静默安装（macOS 上会显示 Finder）
+          // isForceRunAfter: true - 安装后强制重新启动应用
           autoUpdater.quitAndInstall(false, true);
-        }, 100);
+        });
       }
     });
   });
@@ -101,6 +89,11 @@ function setupAutoUpdater() {
     }, 3000);
   }
 }
+
+// 应用退出前的处理
+app.on('before-quit', () => {
+  isQuitting = true;
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -133,12 +126,13 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // 处理窗口关闭事件，更新时不阻止关闭
+  // 处理窗口关闭事件
   mainWindow.on('close', (e) => {
-    if (!isQuitting) {
-      // 正常关闭时可以添加确认逻辑
-      // 但更新时直接关闭
+    // 如果正在更新，允许关闭
+    if (isQuitting) {
+      return;
     }
+    // 正常关闭时可以添加确认逻辑
   });
 }
 
@@ -246,7 +240,7 @@ function getMenuTemplate() {
             dialog.showMessageBox(mainWindow, {
               type: 'info',
               title: '关于无限画布',
-              message: '无限画布 v1.0.2',
+              message: `无限画布 v${app.getVersion()}`,
               detail: '一个支持图片和视频的无限画布应用。\n\n功能：上传、拖动、合并、导出、保存草稿。',
             });
           },
