@@ -69,12 +69,28 @@ function setupAutoUpdater() {
     }).then((result) => {
       if (result.response === 0) {
         isQuitting = true;
-        // 使用 setImmediate 确保在事件循环的下一个周期执行
-        setImmediate(() => {
-          // isSilent: false - 不静默安装（macOS 上会显示 Finder）
-          // isForceRunAfter: true - 安装后强制重新启动应用
-          autoUpdater.quitAndInstall(false, true);
-        });
+        
+        // Windows 上需要先完全关闭应用，再执行安装
+        if (process.platform === 'win32') {
+          // 先关闭所有窗口
+          const windows = BrowserWindow.getAllWindows();
+          windows.forEach(win => {
+            win.removeAllListeners('close');
+            win.destroy();
+          });
+          
+          // 延迟执行安装，确保进程完全退出
+          setTimeout(() => {
+            // isSilent: true - 静默安装（Windows 上避免 UAC 问题）
+            // isForceRunAfter: true - 安装后自动启动
+            autoUpdater.quitAndInstall(true, true);
+          }, 1000);
+        } else {
+          // macOS 和 Linux
+          setImmediate(() => {
+            autoUpdater.quitAndInstall(false, true);
+          });
+        }
       }
     });
   });
