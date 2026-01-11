@@ -24,7 +24,7 @@ declare global {
 }
 
 export const Toolbar: React.FC = () => {
-  const { dispatch, state } = useCanvas();
+  const { dispatch, state, canUndo, canRedo } = useCanvas();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftInputRef = useRef<HTMLInputElement>(null);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('png');
@@ -136,6 +136,20 @@ export const Toolbar: React.FC = () => {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [state.hasUnsavedChanges]);
+
+  // 撤销
+  const handleUndo = () => {
+    if (canUndo) {
+      dispatch({ type: 'UNDO' });
+    }
+  };
+
+  // 重做
+  const handleRedo = () => {
+    if (canRedo) {
+      dispatch({ type: 'REDO' });
+    }
+  };
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -274,6 +288,32 @@ export const Toolbar: React.FC = () => {
       <button onClick={handleUploadClick} style={styles.button} title="上传图片或视频">
         📁 上传
       </button>
+      <div style={styles.separator} />
+      <button 
+        onClick={handleUndo} 
+        style={{
+          ...styles.button,
+          backgroundColor: canUndo ? '#4a90d9' : '#555',
+          cursor: canUndo ? 'pointer' : 'not-allowed',
+        }} 
+        disabled={!canUndo}
+        title="撤销 (Ctrl+Z)"
+      >
+        ↩️ 撤销
+      </button>
+      <button 
+        onClick={handleRedo} 
+        style={{
+          ...styles.button,
+          backgroundColor: canRedo ? '#4a90d9' : '#555',
+          cursor: canRedo ? 'pointer' : 'not-allowed',
+        }} 
+        disabled={!canRedo}
+        title="重做 (Ctrl+Y)"
+      >
+        ↪️ 重做
+      </button>
+      <div style={styles.separator} />
       <button 
         onClick={handleMerge} 
         style={{

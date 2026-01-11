@@ -19,11 +19,13 @@ export interface Rect {
 // 媒体元素基础类型
 export interface BaseElement {
   id: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'text';
   position: Point;
   size: Size;
   originalSize: Size;
   zIndex: number;
+  rotation: number; // 旋转角度（度）
+  scale: number; // 缩放比例
 }
 
 // 图片元素
@@ -42,7 +44,19 @@ export interface VideoElement extends BaseElement {
   currentTime: number;
 }
 
-export type CanvasElement = ImageElement | VideoElement;
+// 文字元素
+export interface TextElement extends BaseElement {
+  type: 'text';
+  text: string;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  backgroundColor?: string;
+  bold: boolean;
+  italic: boolean;
+}
+
+export type CanvasElement = ImageElement | VideoElement | TextElement;
 
 // 视口状态
 export interface ViewportState {

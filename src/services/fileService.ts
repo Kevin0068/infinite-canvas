@@ -71,6 +71,8 @@ export function loadImage(file: File, position = { x: 0, y: 0 }, zIndex = 0): Pr
           size: { width: img.naturalWidth, height: img.naturalHeight },
           originalSize: { width: img.naturalWidth, height: img.naturalHeight },
           zIndex,
+          rotation: 0,
+          scale: 1,
           originalFile: file,
         };
         resolve(element);
@@ -119,6 +121,8 @@ export function loadVideo(file: File, position = { x: 0, y: 0 }, zIndex = 0): Pr
         size: { width: video.videoWidth, height: video.videoHeight },
         originalSize: { width: video.videoWidth, height: video.videoHeight },
         zIndex,
+        rotation: 0,
+        scale: 1,
         originalFile: file,
         isPlaying: false,
         currentTime: 0,

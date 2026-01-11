@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useCanvas } from '../context/CanvasContext';
-import { mergeImages } from '../core/merger';
+import { mergeElements } from '../core/merger';
 import { exportAndDownload } from '../services/exportService';
 import { getClipboard, setClipboard } from './Canvas';
-import type { ImageElement } from '../types';
+import type { ImageElement, CanvasElement } from '../types';
 import type { ExportFormat } from '../services/exportService';
 
 interface ContextMenuProps {
@@ -11,9 +11,10 @@ interface ContextMenuProps {
   y: number;
   onClose: () => void;
   onCrop?: (image: ImageElement) => void;
+  onInsertText?: () => void;
 }
 
-export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop }) => {
+export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop, onInsertText }) => {
   const { state, dispatch } = useCanvas();
   const [isExporting, setIsExporting] = useState(false);
 
@@ -23,7 +24,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop 
   const allImages = state.elements.filter(
     (el): el is ImageElement => el.type === 'image'
   );
-  const canMerge = selectedImages.length >= 2;
+  
+  // 可合并的元素：图片和文字（不包括视频）
+  const selectedMergeableElements = state.elements.filter(
+    (el): el is CanvasElement => (el.type === 'image' || el.type === 'text') && state.selectedIds.has(el.id)
+  );
+  const canMerge = selectedMergeableElements.length >= 2;
   const hasSelection = state.selectedIds.size > 0;
   const canExport = selectedImages.length > 0 || allImages.length > 0;
   const clipboardData = getClipboard();
@@ -33,8 +39,11 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop 
   const handleMerge = async () => {
     if (!canMerge) return;
     try {
-      const mergedImage = await mergeImages(selectedImages, () => crypto.randomUUID());
-      dispatch({ type: 'MERGE_IMAGES', payload: mergedImage });
+      const mergedImage = await mergeElements(selectedMergeableElements, () => crypto.randomUUID());
+      // 删除原始元素并添加合并后的图片
+      dispatch({ type: 'REMOVE_ELEMENTS', payload: selectedMergeableElements.map(el => el.id) });
+      dispatch({ type: 'ADD_ELEMENTS', payload: [mergedImage] });
+      dispatch({ type: 'SET_SELECTION', payload: [mergedImage.id] });
     } catch (error) {
       console.error('合并失败:', error);
     }
@@ -46,6 +55,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop 
       onCrop(selectedImages[0]);
     }
     onClose();
+  };
+
+  const handleInsertText = () => {
+    if (onInsertText) {
+      onInsertText();
+    }
   };
 
   const handleDelete = () => {
@@ -80,7 +95,6 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop 
         },
       }));
       dispatch({ type: 'ADD_ELEMENTS', payload: newElements });
-      // 更新剪贴板位置
       setClipboard(newElements.map(el => ({ ...el })));
     }
     onClose();
@@ -108,12 +122,16 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop 
     <>
       <div style={styles.overlay} onClick={onClose} />
       <div style={{ ...styles.menu, left: x, top: y }}>
+        <button style={styles.menuItem} onClick={handleInsertText}>
+          📝 插入文字
+        </button>
+        <div style={styles.divider} />
         <button
           style={{ ...styles.menuItem, opacity: canMerge ? 1 : 0.5 }}
           onClick={handleMerge}
           disabled={!canMerge}
         >
-          🔗 合并图片
+          🔗 合并元素
         </button>
         <button
           style={{ ...styles.menuItem, opacity: canCrop ? 1 : 0.5 }}

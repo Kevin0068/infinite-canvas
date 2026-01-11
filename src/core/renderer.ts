@@ -1,4 +1,4 @@
-import type { CanvasElement, CanvasState, ViewportState, Size, ImageElement, VideoElement, Rect } from '../types';
+import type { CanvasElement, CanvasState, ViewportState, Size, ImageElement, VideoElement, TextElement, Rect } from '../types';
 import { canvasToScreen } from '../utils/transform';
 
 // 图片缓存
@@ -35,17 +35,18 @@ export function isElementVisible(
   const screenWidth = element.size.width * viewport.scale;
   const screenHeight = element.size.height * viewport.scale;
   
-  // 检查是否与可视区域相交
+  // 检查是否与可视区域相交（考虑旋转后的边界扩大）
+  const maxDim = Math.max(screenWidth, screenHeight) * 1.5;
   return (
-    screenPos.x + screenWidth > 0 &&
-    screenPos.x < canvasSize.width &&
-    screenPos.y + screenHeight > 0 &&
-    screenPos.y < canvasSize.height
+    screenPos.x + maxDim > 0 &&
+    screenPos.x - maxDim < canvasSize.width &&
+    screenPos.y + maxDim > 0 &&
+    screenPos.y - maxDim < canvasSize.height
   );
 }
 
 /**
- * 渲染单个图片元素
+ * 渲染单个图片元素（支持旋转和缩放）
  */
 function renderImageElement(
   ctx: CanvasRenderingContext2D,
@@ -58,8 +59,24 @@ function renderImageElement(
   const screenPos = canvasToScreen(element.position, viewport);
   const screenWidth = element.size.width * viewport.scale;
   const screenHeight = element.size.height * viewport.scale;
+  const rotation = element.rotation || 0;
   
-  ctx.drawImage(img, screenPos.x, screenPos.y, screenWidth, screenHeight);
+  ctx.save();
+  
+  // 移动到元素中心点
+  const centerX = screenPos.x + screenWidth / 2;
+  const centerY = screenPos.y + screenHeight / 2;
+  ctx.translate(centerX, centerY);
+  
+  // 旋转
+  if (rotation !== 0) {
+    ctx.rotate((rotation * Math.PI) / 180);
+  }
+  
+  // 绘制图片（从中心点偏移）
+  ctx.drawImage(img, -screenWidth / 2, -screenHeight / 2, screenWidth, screenHeight);
+  
+  ctx.restore();
 }
 
 /**
@@ -73,26 +90,86 @@ function renderVideoElement(
   const screenPos = canvasToScreen(element.position, viewport);
   const screenWidth = element.size.width * viewport.scale;
   const screenHeight = element.size.height * viewport.scale;
+  const rotation = element.rotation || 0;
+  
+  ctx.save();
+  
+  const centerX = screenPos.x + screenWidth / 2;
+  const centerY = screenPos.y + screenHeight / 2;
+  ctx.translate(centerX, centerY);
+  
+  if (rotation !== 0) {
+    ctx.rotate((rotation * Math.PI) / 180);
+  }
   
   // 绘制视频占位符背景
   ctx.fillStyle = '#1a1a2e';
-  ctx.fillRect(screenPos.x, screenPos.y, screenWidth, screenHeight);
+  ctx.fillRect(-screenWidth / 2, -screenHeight / 2, screenWidth, screenHeight);
   
   // 绘制播放图标
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
-  const centerX = screenPos.x + screenWidth / 2;
-  const centerY = screenPos.y + screenHeight / 2;
   const iconSize = Math.min(screenWidth, screenHeight) * 0.2;
-  ctx.moveTo(centerX - iconSize / 2, centerY - iconSize / 2);
-  ctx.lineTo(centerX + iconSize / 2, centerY);
-  ctx.lineTo(centerX - iconSize / 2, centerY + iconSize / 2);
+  ctx.moveTo(-iconSize / 2, -iconSize / 2);
+  ctx.lineTo(iconSize / 2, 0);
+  ctx.lineTo(-iconSize / 2, iconSize / 2);
   ctx.closePath();
   ctx.fill();
+  
+  ctx.restore();
 }
 
 /**
- * 渲染元素选择框
+ * 渲染文字元素
+ */
+function renderTextElement(
+  ctx: CanvasRenderingContext2D,
+  element: TextElement,
+  viewport: ViewportState
+): void {
+  const screenPos = canvasToScreen(element.position, viewport);
+  const fontSize = element.fontSize * viewport.scale;
+  const rotation = element.rotation || 0;
+  
+  ctx.save();
+  
+  // 设置字体
+  let fontStyle = '';
+  if (element.italic) fontStyle += 'italic ';
+  if (element.bold) fontStyle += 'bold ';
+  ctx.font = `${fontStyle}${fontSize}px ${element.fontFamily}`;
+  
+  // 测量文字尺寸
+  const metrics = ctx.measureText(element.text);
+  const textWidth = metrics.width;
+  const textHeight = fontSize;
+  
+  const centerX = screenPos.x + textWidth / 2;
+  const centerY = screenPos.y + textHeight / 2;
+  
+  ctx.translate(centerX, centerY);
+  
+  if (rotation !== 0) {
+    ctx.rotate((rotation * Math.PI) / 180);
+  }
+  
+  // 绘制背景
+  if (element.backgroundColor) {
+    ctx.fillStyle = element.backgroundColor;
+    ctx.fillRect(-textWidth / 2 - 4, -textHeight / 2 - 2, textWidth + 8, textHeight + 4);
+  }
+  
+  // 绘制文字
+  ctx.fillStyle = element.color;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText(element.text, 0, 0);
+  
+  ctx.restore();
+}
+
+/**
+ * 渲染元素选择框（支持旋转）
  */
 function renderElementSelectionBox(
   ctx: CanvasRenderingContext2D,
@@ -102,25 +179,56 @@ function renderElementSelectionBox(
   const screenPos = canvasToScreen(element.position, viewport);
   const screenWidth = element.size.width * viewport.scale;
   const screenHeight = element.size.height * viewport.scale;
+  const rotation = element.rotation || 0;
+  
+  ctx.save();
+  
+  const centerX = screenPos.x + screenWidth / 2;
+  const centerY = screenPos.y + screenHeight / 2;
+  ctx.translate(centerX, centerY);
+  
+  if (rotation !== 0) {
+    ctx.rotate((rotation * Math.PI) / 180);
+  }
   
   ctx.strokeStyle = '#4a90d9';
   ctx.lineWidth = 2;
   ctx.setLineDash([5, 5]);
-  ctx.strokeRect(screenPos.x - 2, screenPos.y - 2, screenWidth + 4, screenHeight + 4);
+  ctx.strokeRect(-screenWidth / 2 - 2, -screenHeight / 2 - 2, screenWidth + 4, screenHeight + 4);
   ctx.setLineDash([]);
   
-  // 绘制角点
+  // 绘制角点（用于缩放）
   const cornerSize = 8;
   ctx.fillStyle = '#4a90d9';
   const corners = [
-    { x: screenPos.x - cornerSize / 2, y: screenPos.y - cornerSize / 2 },
-    { x: screenPos.x + screenWidth - cornerSize / 2, y: screenPos.y - cornerSize / 2 },
-    { x: screenPos.x - cornerSize / 2, y: screenPos.y + screenHeight - cornerSize / 2 },
-    { x: screenPos.x + screenWidth - cornerSize / 2, y: screenPos.y + screenHeight - cornerSize / 2 },
+    { x: -screenWidth / 2 - cornerSize / 2, y: -screenHeight / 2 - cornerSize / 2 },
+    { x: screenWidth / 2 - cornerSize / 2, y: -screenHeight / 2 - cornerSize / 2 },
+    { x: -screenWidth / 2 - cornerSize / 2, y: screenHeight / 2 - cornerSize / 2 },
+    { x: screenWidth / 2 - cornerSize / 2, y: screenHeight / 2 - cornerSize / 2 },
   ];
   corners.forEach(corner => {
     ctx.fillRect(corner.x, corner.y, cornerSize, cornerSize);
   });
+  
+  // 绘制旋转手柄
+  ctx.beginPath();
+  ctx.moveTo(0, -screenHeight / 2 - 2);
+  ctx.lineTo(0, -screenHeight / 2 - 20);
+  ctx.strokeStyle = '#4a90d9';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([]);
+  ctx.stroke();
+  
+  // 旋转手柄圆点
+  ctx.beginPath();
+  ctx.arc(0, -screenHeight / 2 - 25, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#4a90d9';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  
+  ctx.restore();
 }
 
 /**
@@ -142,6 +250,8 @@ export function renderVisibleElements(
       renderImageElement(ctx, element, viewport);
     } else if (element.type === 'video') {
       renderVideoElement(ctx, element, viewport);
+    } else if (element.type === 'text') {
+      renderTextElement(ctx, element, viewport);
     }
   }
 }

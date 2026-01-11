@@ -39,6 +39,8 @@ const imageElementArb: fc.Arbitrary<ImageElement> = fc.record({
   size: sizeArb,
   originalSize: sizeArb,
   zIndex: fc.integer({ min: 0, max: 1000 }),
+  rotation: fc.constant(0),
+  scale: fc.constant(1),
   src: fc.string({ minLength: 1, maxLength: 100 }),
 });
 
@@ -50,6 +52,8 @@ const videoElementArb: fc.Arbitrary<VideoElement> = fc.record({
   size: sizeArb,
   originalSize: sizeArb,
   zIndex: fc.integer({ min: 0, max: 1000 }),
+  rotation: fc.constant(0),
+  scale: fc.constant(1),
   src: fc.string({ minLength: 1, maxLength: 100 }),
   isPlaying: fc.boolean(),
   currentTime: fc.double({ min: 0, max: 3600, noNaN: true }),

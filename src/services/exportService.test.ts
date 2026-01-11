@@ -29,6 +29,8 @@ const imageElementArb = fc.record({
     height: fc.integer({ min: 10, max: 500 }),
   }),
   zIndex: fc.integer({ min: 0, max: 100 }),
+  rotation: fc.constant(0),
+  scale: fc.constant(1),
   src: fc.constant('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='),
 });
 
@@ -114,6 +116,8 @@ describe('Export Service - Unit Tests', () => {
         size: { width: 100, height: 100 },
         originalSize: { width: 100, height: 100 },
         zIndex: 0,
+        rotation: 0,
+        scale: 1,
         src: 'test',
       },
       {
@@ -123,6 +127,8 @@ describe('Export Service - Unit Tests', () => {
         size: { width: 100, height: 100 },
         originalSize: { width: 100, height: 100 },
         zIndex: 1,
+        rotation: 0,
+        scale: 1,
         src: 'test',
       },
     ];
