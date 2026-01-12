@@ -25,11 +25,11 @@ function App() {
           version = await window.electronAPI.getVersion();
         } catch {
           // 如果获取失败，使用硬编码版本
-          version = '1.0.6';
+          version = '1.0.7';
         }
       } else {
         // 非 Electron 环境，使用硬编码版本
-        version = '1.0.6';
+        version = '1.0.7';
       }
       
       setCurrentVersion(version);

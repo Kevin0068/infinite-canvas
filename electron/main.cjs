@@ -70,26 +70,36 @@ function setupAutoUpdater() {
       if (result.response === 0) {
         isQuitting = true;
         
-        // Windows 上需要先完全关闭应用，再执行安装
         if (process.platform === 'win32') {
-          // 先关闭所有窗口
+          // Windows: 需要确保应用完全退出后再安装
+          // 1. 移除所有窗口的关闭监听器
+          // 2. 关闭所有窗口
+          // 3. 使用 app.quit() 退出应用
+          // 4. 在 will-quit 事件中执行安装
+          
           const windows = BrowserWindow.getAllWindows();
           windows.forEach(win => {
             win.removeAllListeners('close');
-            win.destroy();
+            win.close();
           });
           
-          // 延迟执行安装，确保进程完全退出
-          setTimeout(() => {
-            // isSilent: true - 静默安装（Windows 上避免 UAC 问题）
-            // isForceRunAfter: true - 安装后自动启动
-            autoUpdater.quitAndInstall(true, true);
-          }, 1000);
-        } else {
-          // macOS 和 Linux
-          setImmediate(() => {
-            autoUpdater.quitAndInstall(false, true);
+          // 使用 will-quit 事件确保应用完全退出后再安装
+          app.once('will-quit', (e) => {
+            e.preventDefault();
+            // 延迟 2 秒确保所有资源释放
+            setTimeout(() => {
+              autoUpdater.quitAndInstall(true, true);
+            }, 2000);
           });
+          
+          app.quit();
+        } else if (process.platform === 'darwin') {
+          // macOS: 使用 app.relaunch() 确保重启
+          app.relaunch();
+          autoUpdater.quitAndInstall(false, true);
+        } else {
+          // Linux
+          autoUpdater.quitAndInstall(false, true);
         }
       }
     });
