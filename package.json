@@ -1,7 +1,7 @@
 {
   "name": "infinite-canvas",
   "private": true,
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "无限画布 - 图片和视频管理工具",
   "author": "Infinite Canvas Team",
   "main": "electron/main.cjs",
