@@ -46,7 +46,7 @@ export function isElementVisible(
 }
 
 /**
- * 渲染单个图片元素（支持旋转和缩放）
+ * 渲染单个图片元素（支持旋转、缩放、翻转和滤镜）
  */
 function renderImageElement(
   ctx: CanvasRenderingContext2D,
@@ -60,6 +60,9 @@ function renderImageElement(
   const screenWidth = element.size.width * viewport.scale;
   const screenHeight = element.size.height * viewport.scale;
   const rotation = element.rotation || 0;
+  const flipH = element.flipH || false;
+  const flipV = element.flipV || false;
+  const filters = element.filters;
   
   ctx.save();
   
@@ -71,6 +74,24 @@ function renderImageElement(
   // 旋转
   if (rotation !== 0) {
     ctx.rotate((rotation * Math.PI) / 180);
+  }
+  
+  // 翻转
+  const scaleX = flipH ? -1 : 1;
+  const scaleY = flipV ? -1 : 1;
+  if (flipH || flipV) {
+    ctx.scale(scaleX, scaleY);
+  }
+  
+  // 应用滤镜
+  if (filters) {
+    const filterStr = [
+      `brightness(${filters.brightness}%)`,
+      `contrast(${filters.contrast}%)`,
+      `grayscale(${filters.grayscale}%)`,
+      `blur(${filters.blur}px)`,
+    ].join(' ');
+    ctx.filter = filterStr;
   }
   
   // 绘制图片（从中心点偏移）
@@ -164,6 +185,16 @@ function renderTextElement(
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
   ctx.fillText(element.text, 0, 0);
+  
+  // 绘制下划线
+  if (element.underline) {
+    ctx.strokeStyle = element.color;
+    ctx.lineWidth = Math.max(1, fontSize / 15);
+    ctx.beginPath();
+    ctx.moveTo(-textWidth / 2, textHeight / 3);
+    ctx.lineTo(textWidth / 2, textHeight / 3);
+    ctx.stroke();
+  }
   
   ctx.restore();
 }

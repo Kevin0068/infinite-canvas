@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.8',
+    date: '2026-01-12',
+    changes: [
+      '新增：图片滤镜 - 亮度、对比度、灰度、模糊调整',
+      '新增：图片翻转 - 水平/垂直翻转',
+      '新增：文字样式 - 字体、颜色、粗体、斜体、下划线',
+      '新增：快捷键面板 - 按 F1 查看所有快捷键',
+      '新增：自动保存 - 每分钟自动保存草稿到本地',
+    ],
+  },
+  {
     version: '1.0.7',
     date: '2026-01-12',
     changes: [

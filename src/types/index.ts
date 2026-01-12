@@ -28,11 +28,22 @@ export interface BaseElement {
   scale: number; // 缩放比例
 }
 
+// 滤镜设置
+export interface ImageFilters {
+  brightness: number;  // 亮度 0-200, 默认 100
+  contrast: number;    // 对比度 0-200, 默认 100
+  grayscale: number;   // 灰度 0-100, 默认 0
+  blur: number;        // 模糊 0-20, 默认 0
+}
+
 // 图片元素
 export interface ImageElement extends BaseElement {
   type: 'image';
   src: string;
   originalFile?: File;
+  flipH?: boolean;     // 水平翻转
+  flipV?: boolean;     // 垂直翻转
+  filters?: ImageFilters;
 }
 
 // 视频元素
@@ -54,6 +65,7 @@ export interface TextElement extends BaseElement {
   backgroundColor?: string;
   bold: boolean;
   italic: boolean;
+  underline?: boolean;
 }
 
 export type CanvasElement = ImageElement | VideoElement | TextElement;

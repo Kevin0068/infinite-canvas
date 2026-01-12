@@ -4,6 +4,7 @@ import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
 import { DropZone } from './components/DropZone';
 import { ChangelogModal } from './components/ChangelogModal';
+import { ShortcutsModal } from './components/ShortcutsModal';
 import './App.css';
 
 // 版本号存储的 key
@@ -11,6 +12,7 @@ const VERSION_STORAGE_KEY = 'infinite-canvas-version';
 
 function App() {
   const [showChangelog, setShowChangelog] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [currentVersion, setCurrentVersion] = useState('');
   const [previousVersion, setPreviousVersion] = useState<string | undefined>();
 
@@ -25,11 +27,11 @@ function App() {
           version = await window.electronAPI.getVersion();
         } catch {
           // 如果获取失败，使用硬编码版本
-          version = '1.0.7';
+          version = '1.0.8';
         }
       } else {
         // 非 Electron 环境，使用硬编码版本
-        version = '1.0.7';
+        version = '1.0.8';
       }
       
       setCurrentVersion(version);
@@ -50,6 +52,19 @@ function App() {
     checkVersionUpdate();
   }, []);
 
+  // 快捷键: F1 显示快捷键面板
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setShowShortcuts(true);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const handleCloseChangelog = () => {
     setShowChangelog(false);
   };
@@ -57,7 +72,7 @@ function App() {
   return (
     <CanvasProvider>
       <div style={styles.app}>
-        <Toolbar />
+        <Toolbar onShowShortcuts={() => setShowShortcuts(true)} />
         <div style={styles.canvasContainer}>
           <DropZone>
             <Canvas />
@@ -69,6 +84,9 @@ function App() {
             previousVersion={previousVersion}
             onClose={handleCloseChangelog}
           />
+        )}
+        {showShortcuts && (
+          <ShortcutsModal onClose={() => setShowShortcuts(false)} />
         )}
       </div>
     </CanvasProvider>

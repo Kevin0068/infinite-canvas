@@ -3,7 +3,7 @@ import { useCanvas } from '../context/CanvasContext';
 import { mergeElements } from '../core/merger';
 import { exportAndDownload } from '../services/exportService';
 import { getClipboard, setClipboard } from './Canvas';
-import type { ImageElement, CanvasElement } from '../types';
+import type { ImageElement, CanvasElement, TextElement } from '../types';
 import type { ExportFormat } from '../services/exportService';
 
 interface ContextMenuProps {
@@ -12,14 +12,19 @@ interface ContextMenuProps {
   onClose: () => void;
   onCrop?: (image: ImageElement) => void;
   onInsertText?: () => void;
+  onShowFilter?: (image: ImageElement) => void;
+  onShowTextStyle?: (text: TextElement) => void;
 }
 
-export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop, onInsertText }) => {
+export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop, onInsertText, onShowFilter, onShowTextStyle }) => {
   const { state, dispatch } = useCanvas();
   const [isExporting, setIsExporting] = useState(false);
 
   const selectedImages = state.elements.filter(
     (el): el is ImageElement => el.type === 'image' && state.selectedIds.has(el.id)
+  );
+  const selectedTexts = state.elements.filter(
+    (el): el is TextElement => el.type === 'text' && state.selectedIds.has(el.id)
   );
   const allImages = state.elements.filter(
     (el): el is ImageElement => el.type === 'image'
@@ -35,6 +40,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop,
   const clipboardData = getClipboard();
   const canPaste = clipboardData.length > 0;
   const canCrop = selectedImages.length === 1;
+  const canFilter = selectedImages.length === 1;
+  const canTextStyle = selectedTexts.length === 1;
 
   const handleMerge = async () => {
     if (!canMerge) return;
@@ -53,6 +60,44 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop,
   const handleCrop = () => {
     if (canCrop && onCrop) {
       onCrop(selectedImages[0]);
+    }
+    onClose();
+  };
+
+  const handleFilter = () => {
+    if (canFilter && onShowFilter) {
+      onShowFilter(selectedImages[0]);
+    }
+    onClose();
+  };
+
+  const handleTextStyle = () => {
+    if (canTextStyle && onShowTextStyle) {
+      onShowTextStyle(selectedTexts[0]);
+    }
+    onClose();
+  };
+
+  const handleFlipH = () => {
+    if (selectedImages.length > 0) {
+      selectedImages.forEach(img => {
+        dispatch({
+          type: 'UPDATE_ELEMENT',
+          payload: { id: img.id, updates: { flipH: !img.flipH } },
+        });
+      });
+    }
+    onClose();
+  };
+
+  const handleFlipV = () => {
+    if (selectedImages.length > 0) {
+      selectedImages.forEach(img => {
+        dispatch({
+          type: 'UPDATE_ELEMENT',
+          payload: { id: img.id, updates: { flipV: !img.flipV } },
+        });
+      });
     }
     onClose();
   };
@@ -139,6 +184,34 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onCrop,
           disabled={!canCrop}
         >
           ✂️ 裁剪图片
+        </button>
+        <button
+          style={{ ...styles.menuItem, opacity: canFilter ? 1 : 0.5 }}
+          onClick={handleFilter}
+          disabled={!canFilter}
+        >
+          🎨 滤镜调整
+        </button>
+        <button
+          style={{ ...styles.menuItem, opacity: selectedImages.length > 0 ? 1 : 0.5 }}
+          onClick={handleFlipH}
+          disabled={selectedImages.length === 0}
+        >
+          ↔️ 水平翻转
+        </button>
+        <button
+          style={{ ...styles.menuItem, opacity: selectedImages.length > 0 ? 1 : 0.5 }}
+          onClick={handleFlipV}
+          disabled={selectedImages.length === 0}
+        >
+          ↕️ 垂直翻转
+        </button>
+        <button
+          style={{ ...styles.menuItem, opacity: canTextStyle ? 1 : 0.5 }}
+          onClick={handleTextStyle}
+          disabled={!canTextStyle}
+        >
+          ✏️ 文字样式
         </button>
         <button
           style={{ ...styles.menuItem, opacity: hasSelection ? 1 : 0.5 }}

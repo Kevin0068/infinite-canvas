@@ -1,9 +1,9 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useCanvas } from '../context/CanvasContext';
 import { loadFile } from '../services/fileService';
 import { mergeImages } from '../core/merger';
 import { exportAndDownload } from '../services/exportService';
-import { saveDraftToFile, loadDraftFromFile, deserializeDraft } from '../services/draftService';
+import { saveDraftToFile, loadDraftFromFile, deserializeDraft, serializeDraft } from '../services/draftService';
 import { SUPPORTED_IMAGE_TYPES, SUPPORTED_VIDEO_TYPES } from '../types';
 import type { ExportFormat } from '../services/exportService';
 import type { ImageElement } from '../types';
@@ -23,7 +23,7 @@ declare global {
   }
 }
 
-export const Toolbar: React.FC = () => {
+export const Toolbar: React.FC<{ onShowShortcuts?: () => void }> = ({ onShowShortcuts }) => {
   const { dispatch, state, canUndo, canRedo } = useCanvas();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftInputRef = useRef<HTMLInputElement>(null);
@@ -32,6 +32,57 @@ export const Toolbar: React.FC = () => {
   const [version, setVersion] = useState<string>('');
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'latest' | 'error'>('idle');
   const [updateProgress, setUpdateProgress] = useState<number>(0);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
+
+  // 自动保存间隔（毫秒）
+  const AUTO_SAVE_INTERVAL = 60000; // 1分钟
+  const AUTO_SAVE_KEY = 'infinite-canvas-autosave';
+
+  // 自动保存功能
+  const performAutoSave = useCallback(() => {
+    if (!autoSaveEnabled || state.elements.length === 0) return;
+    
+    try {
+      const draft = serializeDraft(state);
+      localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(draft));
+      setLastAutoSave(new Date());
+      console.log('自动保存完成');
+    } catch (error) {
+      console.error('自动保存失败:', error);
+    }
+  }, [autoSaveEnabled, state]);
+
+  // 定时自动保存
+  useEffect(() => {
+    if (!autoSaveEnabled) return;
+    
+    const interval = setInterval(() => {
+      if (state.hasUnsavedChanges) {
+        performAutoSave();
+      }
+    }, AUTO_SAVE_INTERVAL);
+    
+    return () => clearInterval(interval);
+  }, [autoSaveEnabled, state.hasUnsavedChanges, performAutoSave]);
+
+  // 启动时检查自动保存
+  useEffect(() => {
+    const autoSaveData = localStorage.getItem(AUTO_SAVE_KEY);
+    if (autoSaveData && state.elements.length === 0) {
+      try {
+        const draft = JSON.parse(autoSaveData);
+        const shouldRestore = confirm('发现自动保存的草稿，是否恢复？');
+        if (shouldRestore) {
+          const restoredState = deserializeDraft(draft);
+          dispatch({ type: 'LOAD_STATE', payload: restoredState });
+        }
+      } catch (error) {
+        console.error('恢复自动保存失败:', error);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 获取版本号
   useEffect(() => {
@@ -369,6 +420,24 @@ export const Toolbar: React.FC = () => {
           {getVersionText()}
         </span>
       )}
+      <button 
+        onClick={onShowShortcuts} 
+        style={{ ...styles.button, backgroundColor: '#555', padding: '8px 12px' }}
+        title="快捷键 (F1)"
+      >
+        ⌨️
+      </button>
+      <button
+        onClick={() => setAutoSaveEnabled(!autoSaveEnabled)}
+        style={{ 
+          ...styles.button, 
+          backgroundColor: autoSaveEnabled ? '#28a745' : '#555',
+          padding: '8px 12px',
+        }}
+        title={`自动保存: ${autoSaveEnabled ? '开启' : '关闭'}${lastAutoSave ? ` (上次: ${lastAutoSave.toLocaleTimeString()})` : ''}`}
+      >
+        {autoSaveEnabled ? '🔄' : '⏸️'}
+      </button>
     </div>
   );
 };

@@ -3,10 +3,12 @@ import { useCanvas } from '../context/CanvasContext';
 import { render, loadImageToCache, renderSelectionBox } from '../core/renderer';
 import { calculateZoomOffset, clampScale } from '../utils/transform';
 import { getElementAtPoint, getElementsInRect } from '../core/hitTest';
-import type { Point, Rect, CanvasElement, ImageElement, TextElement, ViewportState } from '../types';
+import type { Point, Rect, CanvasElement, ImageElement, TextElement, ViewportState, ImageFilters } from '../types';
 import { ContextMenu } from './ContextMenu';
 import { CropModal } from './CropModal';
 import { InlineTextEditor } from './InlineTextEditor';
+import { FilterPanel, defaultFilters } from './FilterPanel';
+import { TextStylePanel } from './TextStylePanel';
 import { canvasToScreen } from '../utils/transform';
 
 const MIN_SCALE = 0.1;
@@ -150,6 +152,12 @@ export function Canvas() {
   
   // 右键菜单位置（用于插入文字）
   const contextMenuCanvasPosRef = useRef<Point>({ x: 0, y: 0 });
+  
+  // 滤镜面板状态
+  const [filterImage, setFilterImage] = useState<ImageElement | null>(null);
+  
+  // 文字样式面板状态
+  const [styleText, setStyleText] = useState<TextElement | null>(null);
 
   // 加载所有图片到缓存
   useEffect(() => {
@@ -749,6 +757,70 @@ export function Canvas() {
     setIsAddingText(false);
   }, []);
 
+  // 滤镜面板
+  const handleShowFilter = useCallback((image: ImageElement) => {
+    setFilterImage(image);
+  }, []);
+
+  const handleFilterChange = useCallback((filters: ImageFilters) => {
+    if (filterImage) {
+      dispatch({
+        type: 'UPDATE_ELEMENT',
+        payload: {
+          id: filterImage.id,
+          updates: { filters },
+        },
+      });
+      setFilterImage({ ...filterImage, filters });
+    }
+  }, [filterImage, dispatch]);
+
+  const handleFlipH = useCallback(() => {
+    if (filterImage) {
+      const newFlipH = !filterImage.flipH;
+      dispatch({
+        type: 'UPDATE_ELEMENT',
+        payload: {
+          id: filterImage.id,
+          updates: { flipH: newFlipH },
+        },
+      });
+      setFilterImage({ ...filterImage, flipH: newFlipH });
+    }
+  }, [filterImage, dispatch]);
+
+  const handleFlipV = useCallback(() => {
+    if (filterImage) {
+      const newFlipV = !filterImage.flipV;
+      dispatch({
+        type: 'UPDATE_ELEMENT',
+        payload: {
+          id: filterImage.id,
+          updates: { flipV: newFlipV },
+        },
+      });
+      setFilterImage({ ...filterImage, flipV: newFlipV });
+    }
+  }, [filterImage, dispatch]);
+
+  // 文字样式面板
+  const handleShowTextStyle = useCallback((text: TextElement) => {
+    setStyleText(text);
+  }, []);
+
+  const handleTextStyleChange = useCallback((updates: Partial<TextElement>) => {
+    if (styleText) {
+      dispatch({
+        type: 'UPDATE_ELEMENT',
+        payload: {
+          id: styleText.id,
+          updates,
+        },
+      });
+      setStyleText({ ...styleText, ...updates });
+    }
+  }, [styleText, dispatch]);
+
   // 计算光标样式
   const getCursor = useCallback((e?: React.MouseEvent) => {
     if (isSpacePressed || interactionMode === 'pan') return 'grab';
@@ -814,6 +886,8 @@ export function Canvas() {
           onClose={closeContextMenu}
           onCrop={handleCropRequest}
           onInsertText={handleInsertText}
+          onShowFilter={handleShowFilter}
+          onShowTextStyle={handleShowTextStyle}
         />
       )}
       {cropImage && (
@@ -831,6 +905,24 @@ export function Canvas() {
           onSave={handleTextSave}
           onCancel={handleTextCancel}
           isNew={isAddingText}
+        />
+      )}
+      {filterImage && (
+        <FilterPanel
+          filters={filterImage.filters || defaultFilters}
+          onChange={handleFilterChange}
+          onFlipH={handleFlipH}
+          onFlipV={handleFlipV}
+          flipH={filterImage.flipH || false}
+          flipV={filterImage.flipV || false}
+          onClose={() => setFilterImage(null)}
+        />
+      )}
+      {styleText && (
+        <TextStylePanel
+          element={styleText}
+          onChange={handleTextStyleChange}
+          onClose={() => setStyleText(null)}
         />
       )}
     </div>
