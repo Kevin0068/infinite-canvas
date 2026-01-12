@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.9',
+    date: '2026-01-12',
+    changes: [
+      '修复：Windows 和 macOS 自动更新问题',
+      '优化：简化更新流程，提高稳定性',
+    ],
+  },
+  {
     version: '1.0.8',
     date: '2026-01-12',
     changes: [

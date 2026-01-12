@@ -8,12 +8,18 @@ const isDev = process.env.NODE_ENV === 'development';
 let mainWindow;
 let isQuitting = false;
 let updateDownloaded = false;
+let pendingUpdateInfo = null;
 
 // 配置自动更新
 function setupAutoUpdater() {
   // 禁用自动下载，让用户确认后再下载
   autoUpdater.autoDownload = false;
+  
+  // 关键：让更新在应用退出时自动安装
   autoUpdater.autoInstallOnAppQuit = true;
+  
+  // 安装后自动运行应用
+  autoUpdater.autoRunAppAfterInstall = true;
   
   // macOS 上允许降级（用于测试）
   autoUpdater.allowDowngrade = false;
@@ -58,50 +64,26 @@ function setupAutoUpdater() {
   // 下载完成
   autoUpdater.on('update-downloaded', (info) => {
     updateDownloaded = true;
+    pendingUpdateInfo = info;
     
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: '更新已就绪',
       message: `新版本 ${info.version} 已下载完成`,
-      detail: '重启应用以完成更新。',
+      detail: '点击"立即重启"将关闭应用并安装更新。\n如果选择"稍后重启"，更新将在您下次退出应用时自动安装。',
       buttons: ['立即重启', '稍后重启'],
       defaultId: 0,
     }).then((result) => {
       if (result.response === 0) {
+        // 用户选择立即重启
         isQuitting = true;
         
-        if (process.platform === 'win32') {
-          // Windows: 需要确保应用完全退出后再安装
-          // 1. 移除所有窗口的关闭监听器
-          // 2. 关闭所有窗口
-          // 3. 使用 app.quit() 退出应用
-          // 4. 在 will-quit 事件中执行安装
-          
-          const windows = BrowserWindow.getAllWindows();
-          windows.forEach(win => {
-            win.removeAllListeners('close');
-            win.close();
-          });
-          
-          // 使用 will-quit 事件确保应用完全退出后再安装
-          app.once('will-quit', (e) => {
-            e.preventDefault();
-            // 延迟 2 秒确保所有资源释放
-            setTimeout(() => {
-              autoUpdater.quitAndInstall(true, true);
-            }, 2000);
-          });
-          
-          app.quit();
-        } else if (process.platform === 'darwin') {
-          // macOS: 使用 app.relaunch() 确保重启
-          app.relaunch();
-          autoUpdater.quitAndInstall(false, true);
-        } else {
-          // Linux
-          autoUpdater.quitAndInstall(false, true);
-        }
+        // 简单直接地调用 quitAndInstall
+        // isSilent = false: 显示安装界面
+        // isForceRunAfter = true: 安装后自动启动
+        autoUpdater.quitAndInstall(false, true);
       }
+      // 如果选择稍后重启，autoInstallOnAppQuit = true 会在用户退出时自动安装
     });
   });
 
@@ -117,8 +99,13 @@ function setupAutoUpdater() {
 }
 
 // 应用退出前的处理
-app.on('before-quit', () => {
+app.on('before-quit', (e) => {
   isQuitting = true;
+  
+  // 如果有待安装的更新，确保它会被安装
+  if (updateDownloaded && pendingUpdateInfo) {
+    console.log('应用退出，将安装更新:', pendingUpdateInfo.version);
+  }
 });
 
 function createWindow() {

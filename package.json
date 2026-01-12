@@ -1,7 +1,7 @@
 {
   "name": "infinite-canvas",
   "private": true,
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "无限画布 - 图片和视频管理工具",
   "author": "Infinite Canvas Team",
   "main": "electron/main.cjs",
@@ -65,10 +65,12 @@
       "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
     },
     "linux": {
       "target": "AppImage",
